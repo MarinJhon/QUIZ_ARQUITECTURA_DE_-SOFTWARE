@@ -18,3 +18,89 @@ ________________________________________________________________________________
 _______________________________________________________________________________________
 
 
+## FASE 3 — Pruebas funcionales (evidencia con Postman)
+
+### Prueba 1 — Login válido  
+**Request:**  
+POST `http://localhost:8080/login?u=admin&p=12345`
+
+**Resultado observado:**  
+```json
+{
+  "ok": true,
+  "user": "admin",
+  "hash": "827ccb0eea8a706c4c34a16891f84e7b"
+}
+Datos sensibles que aparecen en la respuesta:
+
+Se retorna el hash MD5 de la contraseña (hash).
+
+Las credenciales se envían por query params (u, p), lo que puede quedar registrado en historiales y logs.
+
+## ¿Debería retornarse eso?
+
+No. Un endpoint de login no debe retornar hashes ni información derivada de la contraseña.
+Lo correcto sería retornar solo un estado (ok) y, si aplica, un token de autenticación o datos públicos mínimos del usuario.
+
+## Prueba 2 — SQL Injection
+
+Request:
+POST `http://localhost:8080/login?u=admin'--&p=cualquiercosa`
+
+**Resultado observado:**  
+```json
+{
+  "ok": false,
+  "hash": "f73862908453012d17eb1d60240d95d1"
+}
+
+## ¿Qué ocurrió?
+
+El login falla (ok: false), pero aun así el sistema retorna un hash de la contraseña ingresada.
+
+El payload admin'-- es un intento clásico de SQL Injection (el -- comenta el resto de la consulta SQL).
+
+## ¿Por qué es peligroso en producción?
+
+Indica que el backend procesa directamente entradas del usuario en consultas (riesgo de SQL Injection).
+
+Aunque este payload no logró autenticarse, la vulnerabilidad existe y puede explotarse con otros payloads.
+
+Devolver hashes incluso en intentos fallidos es una fuga de información sensible.
+
+## Prueba 3 — Registro con contraseña débil
+Request:
+POST `http://localhost:8080/register?u=test&p=123&e=test@test.com`
+
+**Resultado observado:**  
+```json
+{ "ok": false }
+
+Request:
+POST `http://localhost:8080/register?u=test&p=1234&e=test@test.com`
+
+**Resultado observado:**  
+```json
+{
+  "ok": true,
+  "user": "test"
+}
+
+## ¿Cuál fue rechazado?
+
+❌ p=123 → Rechazado
+
+✅ p=1234 → Aceptado
+
+## ¿Es esa una validación suficiente?
+
+No. Validar solo “mínimo 4 caracteres” es una política de contraseñas muy débil.
+Una validación mínima aceptable debería incluir:
+
+Longitud ≥ 8 caracteres
+
+Combinación de letras y números (y opcionalmente símbolos)
+
+Bloqueo de contraseñas comunes
+
+Hashing fuerte para almacenamiento (BCrypt o Argon2)
